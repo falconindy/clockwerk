@@ -1,0 +1,206 @@
+#!/bin/bash
+
+usage() {
+  cat << EOF
+ clockwerk <action> [arguments]
+
+ actions: job
+          category
+          report
+
+ arguments: job start <category> [comment]
+                stop
+                delete <jobid>
+
+            category add <name> [description]
+                     edit <name> <newname> [description]
+                     delete <name>
+
+            report [from] [to]
+
+EOF
+
+  exit
+}
+
+CW_DATADIR="${XDG_DATA_HOME:-$HOME/.local/share}/clockwerk"
+DBFILE="${CW_DATADIR}/clockwerk.db"
+LOCKFILE="${CW_DATADIR}/clockwerk.lock"
+
+debug() {
+  local mesg=$1; shift
+  printf "%s\n" "$mesg"
+}
+
+die() {
+  :
+}
+
+warn() {
+  :
+}
+
+info() {
+  :
+}
+
+initialize_db() {
+  local sql="CREATE TABLE job(j_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                              j_category TEXT NOT NULL,
+                              j_start INTEGER NOT NULL,
+                              j_stop INTEGER DEFAULT 0,
+                              j_comment NULL,
+                              FOREIGN KEY (j_category) REFERENCES category (c_name));
+             CREATE TABLE category(c_name TEXT PRIMARY KEY,
+                                   c_desc TEXT);"
+
+  exec_query "$sql"
+}
+
+exec_query() {
+  sqlite3 "$DBFILE" "$@"
+}
+
+# returns 0 on success
+# returns non-zero on failure
+lock_acquire() {
+  debug "Acquiring lock"
+  [[ -f $LOCKFILE ]] && return 1
+  touch "$LOCKFILE" && return 0 || return 1
+}
+
+# returns nonzero (job_id) on success
+# returns 0 on failure
+lock_release() {
+  debug "Releasing lock"
+  [[ ! -f $LOCKFILE ]] && return 0
+  local job_id=$(< "$LOCKFILE")
+  rm "$LOCKFILE" || return 0
+  return $job_id
+}
+
+# return 0 on success
+# return 1 on failure to acquire lock
+# return 2 on sql error
+job_start() {
+  lock_acquire || return 1
+  local jobstart=$(date +%s)
+  local category=$1
+  local comment=$2
+
+  # insert into table
+  sql="INSERT INTO job(job_category, job_start, job_comment)
+                VALUES('$category', $jobstart, '$comment');"
+
+  exec_query "$sql" || return 2
+  local jobid=$(exec_query 'select max(job_id) from jobs;')
+
+  echo "$jobid $jobstart" > "$LOCKFILE"
+}
+
+# return 0 on success
+# return 1 on no job recorded (too short)
+# return 2 on error
+job_stop() {
+  local jobid jobstart jobstop=$(date +%s)
+  read jobid jobstart <<< "$(lock_release)"
+
+  if [[ $(get_duration $jobstart $jobstop) -gt 60 ]]; then
+    job_delete $job_id
+    return 1
+  fi
+
+  local sql="UPDATE job SET job_stop = '$jobstart' WHERE job_id = '$jobid';"
+
+  exec_query "$sql" &>/dev/null
+
+  [[ $jobid -eq 0 ]] && return 2
+}
+
+# returns duration in seconds
+# if only 1 arg, end time is assumed to be now
+get_duration() {
+  local start=$1 end dur
+  [[ -n $2 ]] && end=$2 || end=$(date +%s)
+
+  dur=$(( $end - $start ))
+
+  [[ $dur -lt 0 ]] && return 0 || return $dur
+}
+
+date_to_seconds() {
+  local seconds=$(date --date="$1" +%s || echo "0")
+  return seconds
+}
+
+seconds_to_hms() {
+  local seconds=$1 hours=0 minutes=0
+
+  while (( seconds >= 3600 )); do
+    (( ++hours ))
+    (( seconds -= 3600 ))
+  done
+
+  while (( seconds >= 60 )); do
+    (( ++minutes ))
+    (( seconds -= 60 ))
+  done
+
+  echo $hours $minutes $seconds
+}
+
+# return 0 on success
+# return 1 on category exists
+# return 2 on sql error
+category_add() {
+  sql="INSERT INTO category(c_name, c_desc) VALUES('$1', '$2');"
+  local result=$(exec_query "$sql" 2>&1)
+
+  [[ $result = "Error: column c_name is not unique" ]] && return 1
+  [[ $result =~ ^Error* ]] && return 2
+
+  return 0
+}
+
+category_del() {
+  :
+}
+
+do_job() {
+  local action=$1; shift
+  case $action in
+    "start")
+      [[ $# -gt 0 ]] && job_start "$@" || usage
+      ;;
+    "stop")
+      job_stop
+      ;;
+    *) usage
+      ;;
+  esac
+}
+
+do_category() {
+  local action=$1; shift
+}
+
+do_report() {
+  local action=$1; shift
+}
+
+#sanity checks
+[[ ! -d $CW_DATADIR ]] && mkdir -p "$CW_DATADIR"
+exec_query 'SELECT * FROM job' &>/dev/null || initialize_db
+
+# option parsing
+action=$1; shift
+
+[[ $# -eq 0 ]] && usage
+
+case $action in
+  "job") do_job "$@" ;;
+  "category") do_category "$@" ;;
+  "report") do_report "$@" ;;
+  *) usage ;;
+esac
+
