@@ -1,5 +1,9 @@
 #!/bin/bash
 
+CW_DATADIR="${XDG_DATA_HOME:-$HOME/.local/share}/clockwerk"
+DBFILE="${CW_DATADIR}/clockwerk.db"
+LOCKFILE="${CW_DATADIR}/clockwerk.lock"
+
 usage() {
   cat << EOF
  clockwerk <action> [arguments]
@@ -23,10 +27,6 @@ EOF
   exit 0
 }
 
-CW_DATADIR="${XDG_DATA_HOME:-$HOME/.local/share}/clockwerk"
-DBFILE="${CW_DATADIR}/clockwerk.db"
-LOCKFILE="${CW_DATADIR}/clockwerk.lock"
-
 debug() {
   local mesg=$1; shift
   printf "debug: %s\n" "$mesg"
@@ -45,6 +45,34 @@ warn() {
 info() {
   local mesg=$1; shift
   printf ":: %s\n" "$mesg"
+}
+
+# returns duration in seconds
+# if only 1 arg, end time is assumed to be now
+get_duration() {
+  local start=$1 end dur
+  [[ -n $2 ]] && end=$2 || end=$(date +%s)
+
+  dur=$(( $end - $start ))
+
+  [[ $dur -lt 0 ]] && return 0 || return $dur
+}
+
+date_to_seconds() {
+  local seconds=$(date --date="$1" +%s || echo "0")
+  return seconds
+}
+
+seconds_to_hms() {
+  local seconds=$1 hours=0 minutes=0
+
+  hours=$(( seconds / 3600 ))
+  seconds=$(( seconds - hours * 3600 ))
+
+  minutes=$(( seconds / 60 ))
+  seconds=$(( seconds - minutes * 60 ))
+
+  echo $hours $minutes $seconds
 }
 
 # return 0 on success
@@ -87,6 +115,10 @@ lock_release() {
   rm "$LOCKFILE"
 }
 
+#################################
+#       job functions           #
+#################################
+
 # return 0 on success
 # return 1 on failure to acquire lock
 # return 2 on sql error
@@ -128,33 +160,10 @@ job_modify() {
   :
 }
 
-# returns duration in seconds
-# if only 1 arg, end time is assumed to be now
-get_duration() {
-  local start=$1 end dur
-  [[ -n $2 ]] && end=$2 || end=$(date +%s)
 
-  dur=$(( $end - $start ))
-
-  [[ $dur -lt 0 ]] && return 0 || return $dur
-}
-
-date_to_seconds() {
-  local seconds=$(date --date="$1" +%s || echo "0")
-  return seconds
-}
-
-seconds_to_hms() {
-  local seconds=$1 hours=0 minutes=0
-
-  hours=$(( seconds / 3600 ))
-  seconds=$(( seconds - hours * 3600 ))
-
-  minutes=$(( seconds / 60 ))
-  seconds=$(( seconds - minutes * 60 ))
-
-  echo $hours $minutes $seconds
-}
+#################################
+#      category functions       #
+#################################
 
 # return 0 on success
 # return 1 on category exists
@@ -183,6 +192,11 @@ category_list() {
   done < <(exec_query "$sql")
 }
 
+
+#################################
+#      action dispatchers       #
+#################################
+
 do_job() {
   local action=$1; shift
 
@@ -193,6 +207,9 @@ do_job() {
       ;;
     "stop")
       job_stop
+      ;;
+    "status")
+      job_status
       ;;
     "delete")
       die "Not implemented"
@@ -214,7 +231,19 @@ do_report() {
   die "Not implemented"
 }
 
-[[ $# -lt 2 ]] && usage
+do_status() {
+  if [[ -f $LOCKFILE ]]; then
+    local jobstart category comment dur
+    IFS=$'|' read jobstart category comment < "$LOCKFILE"
+    dur=$(( $(date +%s) - jobstart ))
+    echo "Job in Progress:"
+    echo "Category: $category"
+    [[ -n $comment ]] && echo "Comment: $comment"
+    printf "Elapsed time: %sh %sm %ss\n" $(seconds_to_hms $dur)
+  else
+    info "No job currently running"
+  fi
+}
 
 #sanity checks
 [[ ! -d $CW_DATADIR ]] && mkdir -p "$CW_DATADIR"
