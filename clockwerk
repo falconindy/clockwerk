@@ -89,6 +89,8 @@ lock_release() {
 # return 2 on sql error
 job_start() {
   lock_acquire || return 1
+  local ret=$?
+  [[ $ret -eq 1 ]] 
 
   local jobstart=$(date +%s) category=$1 comment=$2
 
@@ -147,17 +149,25 @@ seconds_to_hms() {
 # return 1 on category exists
 # return 2 on sql error
 category_add() {
-  sql="INSERT INTO category(c_name, c_desc) VALUES('$1', '$2');"
+  local sql="INSERT INTO category(c_name, c_desc) VALUES('$1', '$2');"
   local result=$(exec_query "$sql" 2>&1)
 
   [[ $result = "Error: column c_name is not unique" ]] && return 1
-  [[ $result =~ ^Error* ]] && return 2
+  [[ $result =~ ^Error:* ]] && return 2
 
   return 0
 }
 
 category_del() {
   :
+}
+
+category_list() {
+  local sql="SELECT c_name, c_desc FROM category"
+
+  while IFS=$'|' read c_name c_desc; do
+    printf "%-20s%-20s\n" "$c_name" "$c_desc"
+  done < <(exec_query "$sql")
 }
 
 do_job() {
@@ -182,6 +192,7 @@ do_category() {
 
   case $action in
     "add") category_add "$@" ;;
+    "list") category_list ;;
     *) die "Not implemented" ;;
   esac
 
@@ -189,7 +200,7 @@ do_category() {
 
 do_report() {
   local action=$1; shift
-
+  die "Not implemented"
 }
 
 #sanity checks
