@@ -95,7 +95,7 @@ initialize_db() {
                               j_comment NULL,
                               FOREIGN KEY (j_category) REFERENCES category (c_name));
              CREATE TABLE category(c_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                   c_name TEXT,
+                                   c_name TEXT UNIQUE,
                                    c_desc TEXT);"
 
   exec_query "$sql" || return 1
@@ -192,7 +192,7 @@ category_add() {
   local sql="INSERT INTO category(c_name, c_desc) VALUES('$1', '$2');"
   local result=$(exec_query "$sql" 2>&1)
 
-  [[ $result = "Error: column c_name is not unique" ]] && return 1
+  [[ $result = "Error: column c_name is not unique" ]] && die "category '$1' already exists."
   [[ $result =~ ^Error:* ]] && return 2
 
   return 0
@@ -253,8 +253,8 @@ do_job() {
 do_category() {
   local action=$1; shift
 
-  type -p category_$action && category_$action "$@" || usage
-
+  type -p category_$action || usage
+  category_$action "$@"
 }
 
 do_report() {
