@@ -63,6 +63,7 @@ date_to_seconds() {
   return seconds
 }
 
+# prints HH MM SS
 seconds_to_hms() {
   local seconds=$1 hours=0 minutes=0
 
@@ -74,6 +75,22 @@ seconds_to_hms() {
 
   echo $hours $minutes $seconds
 }
+
+# prints HH MM rounded to nearest minute
+seconds_to_hm() {
+  local seconds=$1 hours=0 minutes=0
+
+  hours=$(( seconds / 3600 ))
+  seconds=$(( seconds - hours * 3600 ))
+
+  minutes=$(( seconds / 60 ))
+  seconds=$(( seconds - minutes * 60 ))
+
+  (( seconds >= 30 )) && (( ++minutes ))
+
+  echo $hours $minutes
+}
+
 
 # return 0 on success
 # return 1 on failure
@@ -160,7 +177,6 @@ job_modify() {
   :
 }
 
-
 #################################
 #      category functions       #
 #################################
@@ -185,7 +201,7 @@ category_delete() {
 }
 
 category_list() {
-  local sql="SELECT c_name, c_desc FROM category"
+  local sql="SELECT DISTINCT j_category FROM job"
 
   while IFS=$'|' read c_name c_desc; do
     printf "%-20s%-20s\n" "$c_name" "$c_desc"
@@ -264,7 +280,6 @@ do_status() {
     info "No job currently running"
   fi
 }
-
 
 #############
 # main loop #
