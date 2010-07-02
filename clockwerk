@@ -16,11 +16,11 @@ usage() {
                      edit <name> <newname> [description]
                      delete <name>
 
-            report [from] [to]
+            report [-c category] [-f from] [-t to]
 
 EOF
 
-  exit
+  exit 0
 }
 
 CW_DATADIR="${XDG_DATA_HOME:-$HOME/.local/share}/clockwerk"
@@ -43,7 +43,8 @@ warn() {
 }
 
 info() {
-  :
+  local mesg=$1; shift
+  printf ":: %s\n" "$mesg"
 }
 
 # return 0 on success
@@ -90,6 +91,9 @@ lock_release() {
 # return 1 on failure to acquire lock
 # return 2 on sql error
 job_start() {
+  # verify category exists
+  # do we want to create the category if it doesn't exist?
+
   lock_acquire || return 1
   local ret=$?
   [[ $ret -eq 1 ]] && die "A job is already running"
@@ -118,6 +122,10 @@ job_stop() {
   exec_query "$sql" &>/dev/null
 
   [[ $jobid -eq 0 ]] && return 3
+}
+
+job_modify() {
+  :
 }
 
 # returns duration in seconds
@@ -161,8 +169,10 @@ category_add() {
   return 0
 }
 
-category_del() {
-  :
+category_delete() {
+  die "Not implemented"
+  # check for existance of category, fail if it doesn't exist
+  # how to handle removal of a category when jobs use it?
 }
 
 category_list() {
@@ -184,20 +194,18 @@ do_job() {
     "stop")
       job_stop
       ;;
+    "delete")
+      die "Not implemented"
+      ;;
     *) usage
       ;;
   esac
-
 }
 
 do_category() {
   local action=$1; shift
 
-  case $action in
-    "add") category_add "$@" ;;
-    "list") category_list ;;
-    *) die "Not implemented" ;;
-  esac
+  type -p category_$action && category_$action "$@" || usage
 
 }
 
@@ -206,19 +214,13 @@ do_report() {
   die "Not implemented"
 }
 
+[[ $# -lt 2 ]] && usage
+
 #sanity checks
 [[ ! -d $CW_DATADIR ]] && mkdir -p "$CW_DATADIR"
 exec_query 'SELECT * FROM job' &>/dev/null || initialize_db || die "failed to initialize database"
 
 # option parsing
 action=$1; shift
-
-[[ $# -eq 0 ]] && usage
-
-case $action in
-  "job") do_job "$@" ;;
-  "category") do_category "$@" ;;
-  "report") do_report "$@" ;;
-  *) usage ;;
-esac
+type -p do_$action && do_$action "$@" || usage
 
