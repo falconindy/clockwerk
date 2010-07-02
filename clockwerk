@@ -72,7 +72,9 @@ exec_query() {
 lock_acquire() {
   debug "Acquiring lock"
   [[ -f $LOCKFILE ]] && return 1
-  touch "$LOCKFILE" && return 0 || return 1
+  touch "$LOCKFILE" || return 2
+
+  return 0
 }
 
 # returns 0 on success
@@ -90,7 +92,8 @@ lock_release() {
 job_start() {
   lock_acquire || return 1
   local ret=$?
-  [[ $ret -eq 1 ]] 
+  [[ $ret -eq 1 ]] && die "A job is already running"
+  [[ $ret -eq 2 ]] && die "Unable to create lock file"
 
   local jobstart=$(date +%s) category=$1 comment=$2
 
