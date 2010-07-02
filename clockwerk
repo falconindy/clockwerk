@@ -228,7 +228,24 @@ do_category() {
 
 do_report() {
   local action=$1; shift
-  die "Not implemented"
+  local from to cat
+
+  while getopts "f:t:c:" opt; do
+  case "$opt" in
+    f) from=$(date --date="$OPTARG" +%s 2>/dev/null) || die "Invalid from date: '$OPTARG'" ;;
+    t) to=$(date --date="$OPTARG" +%s 2>/dev/null) || die "Invalid to date: '$OPTARG'" ;;
+    c) category_is_valid "$OPTARG" && cat="$OPTARG" || die "Category not found: '$OPTARG'" ;;
+    \?) die "Unrecognized option -$OPTARG" ;;
+  esac
+  done
+
+  # ensure a default date range
+  from=${from:-0}
+  to=${to:-$(date +%s)}
+  cat=${cat:-ALL}
+
+  echo -e "report requested:\nfrom: $(date --date=@$from)\nto: $(date --date=@$to)\ncategory: $cat"
+
 }
 
 do_status() {
@@ -245,7 +262,12 @@ do_status() {
   fi
 }
 
-#sanity checks
+
+#############
+# main loop #
+#############
+
+# sanity checks
 [[ ! -d $CW_DATADIR ]] && mkdir -p "$CW_DATADIR"
 exec_query 'SELECT * FROM job' &>/dev/null || initialize_db || die "failed to initialize database"
 
