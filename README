@@ -1,0 +1,8 @@
+CLI time management tool. very pre-alpha.
+
+planned features:
+  * sqlite3 backend
+  * organization via categories
+  * scriptable front end
+  * reporting
+
