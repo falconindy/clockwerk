@@ -110,17 +110,13 @@ exec_query() {
 # returns 0 on success
 # returns non-zero on failure
 lock_acquire() {
-  debug "Acquiring lock"
   [[ -f $LOCKFILE ]] && return 1
   touch "$LOCKFILE" || return 2
-
-  return 0
 }
 
 # returns 0 on success
 # returns non-zero on failure
 lock_release() {
-  debug "Releasing lock"
   [[ ! -f $LOCKFILE ]] && return 1
   cat "$LOCKFILE"
   rm "$LOCKFILE"
@@ -149,7 +145,7 @@ job_start() {
 
   local jobstart=$(date +%s) comment=$2
 
-  echo "$jobstart|$catnum|$comment" > "$LOCKFILE"
+  echo "$jobstart|$catnum|$1|$comment" > "$LOCKFILE"
 
   info "Job started at $(date)"
 }
@@ -158,9 +154,9 @@ job_start() {
 # return 1 on error
 job_stop() {
   [[ ! -f $LOCKFILE ]] && return 1
-  local category jobstart comment jobstop=$(date +%s)
+  local jobstart category catnum comment jobstop=$(date +%s)
 
-  IFS=$'|' read jobstart category comment < <(lock_release || echo -1)
+  IFS=$'|' read jobstart catnum category comment < <(lock_release || echo -1)
 
   [[ $jobstart = "-1" ]] && return 1
 
@@ -239,9 +235,6 @@ do_job() {
     "stop")
       job_stop
       ;;
-    "status")
-      job_status
-      ;;
     "delete")
       die "Not implemented"
       ;;
@@ -284,13 +277,11 @@ do_report() {
 
 do_status() {
   if [[ -f $LOCKFILE ]]; then
-    local jobstart category catnum comment dur
-    IFS=$'|' read jobstart catnum comment < "$LOCKFILE"
-    dur=$(( $(date +%s) - jobstart ))
-    echo "Job in Progress:"
-    echo "Category: $(exec_query "SELECT c_name from category where c_id = '$catnum';")"
+    local jobstart category comment
+    IFS=$'|' read jobstart _ category comment < "$LOCKFILE"
+    echo "Job in Progress: $category"
     [[ -n $comment ]] && echo "Comment: $comment"
-    printf "Elapsed time: %sh %sm %ss\n" $(seconds_to_hms $dur)
+    printf "Elapsed time: %s\n" "$(seconds_to_hms $(( $(date +%s) - jobstart )))"
   else
     info "No job currently running"
   fi
