@@ -35,6 +35,7 @@ debug() {
 die() {
   local mesg=$1; shift
   printf "error: %s\n" "$mesg" >&2
+  exit 1
 }
 
 warn() {
@@ -45,17 +46,6 @@ warn() {
 info() {
   local mesg=$1; shift
   printf ":: %s\n" "$mesg"
-}
-
-# returns duration in seconds
-# if only 1 arg, end time is assumed to be now
-get_duration() {
-  local start=$1 end dur
-  [[ -n $2 ]] && end=$2 || end=$(date +%s)
-
-  dur=$(( end - start ))
-
-  [[ $dur -lt 0 ]] && return 0 || return $dur
 }
 
 date_to_seconds() {
@@ -101,7 +91,8 @@ initialize_db() {
                               j_stop INTEGER DEFAULT 0,
                               j_comment NULL,
                               FOREIGN KEY (j_category) REFERENCES category (c_name));
-             CREATE TABLE category(c_name TEXT PRIMARY KEY,
+             CREATE TABLE category(c_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                   c_name TEXT,
                                    c_desc TEXT);"
 
   exec_query "$sql" || return 1
@@ -139,18 +130,25 @@ lock_release() {
 # return 0 on success
 # return 1 on failure to acquire lock
 # return 2 on sql error
+# parameters: category, opt:comment
 job_start() {
   # verify category exists
   # do we want to create the category if it doesn't exist?
+
+  category_verify "$1"
+  local catnum=$?
+  [[ $catnum -eq 0 ]] && die "Invalid category: '$1'"
 
   lock_acquire || return 1
   local ret=$?
   [[ $ret -eq 1 ]] && die "A job is already running"
   [[ $ret -eq 2 ]] && die "Unable to create lock file"
 
-  local jobstart=$(date +%s) category=$1 comment=$2
+  local jobstart=$(date +%s) comment=$2
 
-  echo "$jobstart|$category|$comment" > "$LOCKFILE"
+  echo "$jobstart|$catnum|$comment" > "$LOCKFILE"
+
+  info "Job started at $(date)"
 }
 
 # return 0 on success
@@ -163,14 +161,17 @@ job_stop() {
 
   [[ $jobstart = "-1" ]] && return 1
 
-  [[ $(get_duration $jobstart $jobstop) -gt 60 ]] && return 2
+  if (( jobstop - jobstart < 60 )); then
+    warn "Job too short. Discarded."
+    return 2
+  fi
 
   local sql="INSERT INTO job(j_category, j_start, j_stop, j_comment)
                       VALUES('$category', '$jobstart', '$jobstop', '$comment');"
 
-  exec_query "$sql" &>/dev/null
+  exec_query "$sql" &>/dev/null || return 3
 
-  [[ $jobid -eq 0 ]] && return 3
+  info "Job complete: duration %s %s" $(seconds_to_hm $(( jobstop - jobstart )))
 }
 
 job_modify() {
@@ -206,6 +207,17 @@ category_list() {
   while IFS=$'|' read c_name c_desc; do
     printf "%-20s%-20s\n" "$c_name" "$c_desc"
   done < <(exec_query "$sql")
+}
+
+# returns zero on not found else c_id
+# parameter: category name
+category_verify() {
+  local sql result
+
+  sql="SELECT c_id from category where c_name = '$1';"
+  result=$(exec_query "$sql")
+
+  [[ -z $result ]] && return 0 || return $result
 }
 
 
@@ -250,7 +262,7 @@ do_report() {
   case "$opt" in
     f) from=$(date --date="$OPTARG" +%s 2>/dev/null) || die "Invalid from date: '$OPTARG'" ;;
     t) to=$(date --date="$OPTARG" +%s 2>/dev/null) || die "Invalid to date: '$OPTARG'" ;;
-    c) category_is_valid "$OPTARG" && cat="$OPTARG" || die "Category not found: '$OPTARG'" ;;
+    c) category_verify "$OPTARG" && cat="$OPTARG" || die "Category not found: '$OPTARG'" ;;
     \?) die "Unrecognized option -$OPTARG" ;;
   esac
   done
