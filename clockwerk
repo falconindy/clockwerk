@@ -63,7 +63,9 @@ seconds_to_hms() {
   minutes=$(( seconds / 60 ))
   seconds=$(( seconds - minutes * 60 ))
 
-  echo $hours $minutes $seconds
+  [[ $hours -gt 0 ]] && echo -n "${hours}h "
+  [[ $minutes -gt 0 ]] && echo -n "${minutes}m "
+  [[ $seconds -gt 0 ]] && echo "${seconds}s"
 }
 
 # prints HH MM rounded to nearest minute
@@ -78,7 +80,8 @@ seconds_to_hm() {
 
   (( seconds >= 30 )) && (( ++minutes ))
 
-  echo $hours $minutes
+  [[ $hours -gt 0 ]] && echo -n "${hours}h "
+  [[ $minutes -gt 0 ]] && echo "${minutes}m"
 }
 
 
@@ -171,7 +174,7 @@ job_stop() {
 
   exec_query "$sql" &>/dev/null || return 3
 
-  info "Job complete: duration %s %s" $(seconds_to_hm $(( jobstop - jobstart )))
+  info "Job complete: duration $(seconds_to_hm $(( jobstop - jobstart )))"
 }
 
 job_modify() {
@@ -281,11 +284,11 @@ do_report() {
 
 do_status() {
   if [[ -f $LOCKFILE ]]; then
-    local jobstart category comment dur
-    IFS=$'|' read jobstart category comment < "$LOCKFILE"
+    local jobstart category catnum comment dur
+    IFS=$'|' read jobstart catnum comment < "$LOCKFILE"
     dur=$(( $(date +%s) - jobstart ))
     echo "Job in Progress:"
-    echo "Category: $category"
+    echo "Category: $(exec_query "SELECT c_name from category where c_id = '$catnum';")"
     [[ -n $comment ]] && echo "Comment: $comment"
     printf "Elapsed time: %sh %sm %ss\n" $(seconds_to_hms $dur)
   else
