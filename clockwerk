@@ -29,17 +29,17 @@ EOF
 
 debug() {
   local mesg=$1; shift
-  printf "debug: %s\n" "$mesg"
+  printf "debug: %s\n" "$mesg" >&2
 }
 
 die() {
   local mesg=$1; shift
-  printf "error: %s\n" "$mesg"
+  printf "error: %s\n" "$mesg" >&2
 }
 
 warn() {
   local mesg=$1; shift
-  printf "warn: %s\n" "$mesg"
+  printf "warn: %s\n" "$mesg" >&2
 }
 
 info() {
@@ -53,7 +53,7 @@ get_duration() {
   local start=$1 end dur
   [[ -n $2 ]] && end=$2 || end=$(date +%s)
 
-  dur=$(( $end - $start ))
+  dur=$(( end - start ))
 
   [[ $dur -lt 0 ]] && return 0 || return $dur
 }
@@ -142,14 +142,14 @@ job_stop() {
   [[ ! -f $LOCKFILE ]] && return 1
   local category jobstart comment jobstop=$(date +%s)
 
-  IFS=$'|' read jobstart category comment <<< "$(lock_release || echo -1)"
+  IFS=$'|' read jobstart category comment < <(lock_release || echo -1)
 
-  [[ $jobstart -eq -1 ]] && return 1
+  [[ $jobstart = "-1" ]] && return 1
 
   [[ $(get_duration $jobstart $jobstop) -gt 60 ]] && return 2
 
   local sql="INSERT INTO job(j_category, j_start, j_stop, j_comment)
-                      VALUES('$category', '$jobstart', '$jobstop', 'comment');"
+                      VALUES('$category', '$jobstart', '$jobstop', '$comment');"
 
   exec_query "$sql" &>/dev/null
 
@@ -244,7 +244,10 @@ do_report() {
   to=${to:-$(date +%s)}
   cat=${cat:-ALL}
 
-  echo -e "report requested:\nfrom: $(date --date=@$from)\nto: $(date --date=@$to)\ncategory: $cat"
+  printf "%5s %-10s %-10s %s\n\n" ID Category Duration Comment
+  while IFS=$'|' read id cat start stop comment; do
+    printf "%5s %-10s %-10s %s\n" "$id" "$cat" "$(seconds_to_hms $(( stop - start )))" "$comment"
+  done < <(exec_query "select * from job")
 
 }
 
@@ -273,5 +276,6 @@ exec_query 'SELECT * FROM job' &>/dev/null || initialize_db || die "failed to in
 
 # option parsing
 action=$1; shift
-type -p do_$action && do_$action "$@" || usage
+type -p do_$action || usage
+do_$action "$@"
 
