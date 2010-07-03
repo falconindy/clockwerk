@@ -201,7 +201,7 @@ category_delete() {
 }
 
 category_list() {
-  local sql="SELECT DISTINCT j_category FROM job"
+  local sql="SELECT c_name FROM category"
 
   while IFS=$'|' read c_name c_desc; do
     printf "%-20s%-20s\n" "$c_name" "$c_desc"
