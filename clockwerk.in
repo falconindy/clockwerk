@@ -91,7 +91,7 @@ seconds_to_hm() {
 # return 1 on failure
 initialize_db() {
   local sql="CREATE TABLE job(j_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                              j_category TEXT NOT NULL,
+                              j_category INTEGER NOT NULL,
                               j_start INTEGER NOT NULL,
                               j_stop INTEGER DEFAULT 0,
                               j_comment NULL,
@@ -168,7 +168,7 @@ job_stop() {
   fi
 
   local sql="INSERT INTO job(j_category, j_start, j_stop, j_comment)
-                      VALUES('$category', '$jobstart', '$jobstop', '$comment');"
+                      VALUES('$catnum', '$jobstart', '$jobstop', '$comment');"
 
   exec_query "$sql" &>/dev/null || return 3
 
@@ -270,10 +270,10 @@ do_report() {
   to=${to:-$(date +%s)}
   cat=${cat:-ALL}
 
-  printf "%5s %-10s %-10s %s\n\n" ID Category Duration Comment
-  while IFS=$'|' read id cat start stop comment; do
-    printf "%5s %-10s %-10s %s\n" "$id" "$cat" "$(seconds_to_hms $(( stop - start )))" "$comment"
-  done < <(exec_query "select * from job")
+  printf "%-15s %-10s %s\n---------------------------------------\n" Category Duration Comment
+  while IFS=$'|' read cat start stop comment; do
+    printf "%-15s %-10s %s\n" "$cat" "$(seconds_to_hms $(( stop - start )))" "$comment"
+  done < <(exec_query "select c_name,j_start,j_stop,j_comment from job inner join category on job.j_category = category.c_id")
 
 }
 
