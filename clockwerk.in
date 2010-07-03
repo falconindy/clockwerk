@@ -270,10 +270,15 @@ do_report() {
   to=${to:-$(date +%s)}
   cat=${cat:-ALL}
 
-  printf "%-15s %-10s %s\n---------------------------------------\n" Category Duration Comment
+  printf "%-15s %-15s %-10s %s\n-------------------------------------------------\n" Category Date Duration Comment
   while IFS=$'|' read cat start stop comment; do
-    printf "%-15s %-10s %s\n" "$cat" "$(seconds_to_hms $(( stop - start )))" "$comment"
-  done < <(exec_query "select c_name,j_start,j_stop,j_comment from job inner join category on job.j_category = category.c_id")
+    printf "%-15s %-15s %-10s %s\n" "$cat" "$(date --date=@$start +%D)" "$(seconds_to_hms $(( stop - start )))" "$comment"
+  done < <(exec_query "select
+                        c_name,j_start,j_stop,j_comment
+                       from
+                        job
+                       inner join category
+                        on job.j_category = category.c_id")
 
 }
 
