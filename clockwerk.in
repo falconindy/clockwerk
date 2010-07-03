@@ -1,4 +1,5 @@
 #!/bin/bash
+VERSION=@VERSION@
 
 CW_DATADIR="${XDG_DATA_HOME:-$HOME/.local/share}/clockwerk"
 DBFILE="${CW_DATADIR}/clockwerk.db"
@@ -6,21 +7,22 @@ LOCKFILE="${CW_DATADIR}/clockwerk.lock"
 
 usage() {
   cat << EOF
- clockwerk <action> [arguments]
+clockwerk $VERSION
+Usage: clockwerk <action> [arguments]
 
- actions: job
-          category
-          report
+actions: job
+        category
+        report
 
- arguments: job start <category> [comment]
-                stop
-                delete <jobid>
+arguments: job start <category> [comment]
+              stop
+              delete <jobid>
 
-            category add <name> [description]
-                     edit <name> <newname> [description]
-                     delete <name>
+          category add <name> [description]
+                   edit <name> <newname> [description]
+                   delete <name>
 
-            report [-c category] [-f from] [-t to]
+          report [-c category] [-f from] [-t to]
 
 EOF
 
