@@ -1,8 +1,10 @@
-CLI time management tool. very pre-alpha.
+CLI time management tool. very pre-beta.
 
 planned features:
   * sqlite3 backend
   * organization via categories
   * scriptable front end
-  * reporting
+  * flexible reporting
 
+programatic goals:
+  * use as much bash as possible aside from calls to echo/cat/sqlite3
