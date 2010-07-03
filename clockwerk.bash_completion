@@ -1,0 +1,38 @@
+#!/bin/bash
+
+_clockwerk() {
+  local cur prev actions categories src ng_set
+
+  # save current nullglob setting and turn it on
+  ng_set=$(shopt -p nullglob)
+  shopt -s nullglob
+
+  declare -a COMPREPLY
+  cur=${COMP_WORDS[COMP_CWORD]}
+  prev=${COMP_WORDS[COMP_CWORD-1]}
+
+
+  # Valid actions
+  actions="job category status report"
+
+  jobact="start stop modify delete"
+
+  catact="list add delete modify"
+
+  [[ $prev == ${COMP_WORDS[0]} ]] && COMPREPLY=( $(compgen -W "$actions" -- $cur ) ) && return
+
+  case ${COMP_WORDS[1]} in
+    "job") COMPREPLY=( $(compgen -W "$jobact" -- $cur ) ) ;;
+    "category") COMPRELY=( $(compgen -W "$catact" -- $cur ) ) ;;
+  esac
+
+  if [[ ${COMP_WORDS[1]} = "job" && $prev = "start" ]]; then
+    COMPREPLY=( $(compgen -W "$(${COMP_WORDS[0]} category list)" -- $cur ) )
+  fi
+
+  # restore the previous nullglob setting
+  $ng_set
+
+}
+
+complete -F _clockwerk clockwerk
