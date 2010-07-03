@@ -1,12 +1,16 @@
 VERSION=$(shell git describe --always)
+PREFIX=usr
 
-all: clockwerk
+all: doc
+doc: clockwerk.1
 
-clockwerk: clockwerk.in
-	sed "s/VERSION=@VERSION@/VERSION=${VERSION}/" clockwerk.in > clockwerk
-	chmod 755 clockwerk
+clockwerk.1: README.pod
+	@echo todo: make a manpage
+
+install: doc
+	sed "s/VERSION=@VERSION@/VERSION=${VERSION}/" < clockwerk > ${DESTDIR}${PREFIX}/bin/clockwerk
 
 clean:
 	@rm -f clockwerk
 
-.PHONY: clean
+.PHONY: clean install doc
