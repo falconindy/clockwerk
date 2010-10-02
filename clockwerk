@@ -218,7 +218,7 @@ category_verify() {
   sql="SELECT c_id from category where c_name = '$1';"
   result=$(exec_query "$sql")
 
-  [[ -z $result ]] && return 0 || return $result
+  return $result
 }
 
 
@@ -238,7 +238,7 @@ do_job() {
       job_stop
       ;;
     "delete")
-      die "Not implemented"
+      category_delete
       ;;
     *) usage
       ;;
