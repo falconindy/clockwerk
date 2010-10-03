@@ -136,9 +136,8 @@ job_start() {
   # verify category exists
   # do we want to create the category if it doesn't exist?
 
-  category_verify "$1"
-  local catnum=$?
-  [[ $catnum -eq 0 ]] && die "Invalid category: '$1'"
+  local catnum=$(category_verify "$1")
+  [[ $catnum ]] || die "Invalid category: '$1'"
 
   lock_acquire || return 1
   local ret=$?
@@ -218,7 +217,7 @@ category_verify() {
   sql="SELECT c_id from category where c_name = '$1';"
   result=$(exec_query "$sql")
 
-  [[ -z $result ]] && return 0 || return $result
+  [[ $result ]] && echo $result || return 1
 }
 
 
@@ -253,11 +252,10 @@ do_category() {
 }
 
 do_report() {
-  local action=$1; shift
   local from to cat
 
   while getopts "f:t:c:" opt; do
-  case "$opt" in
+  case $opt in
     f) from=$(date --date="$OPTARG" +%s 2>/dev/null) || die "Invalid from date: '$OPTARG'" ;;
     t) to=$(date --date="$OPTARG" +%s 2>/dev/null) || die "Invalid to date: '$OPTARG'" ;;
     c) category_verify "$OPTARG" && cat="$OPTARG" || die "Category not found: '$OPTARG'" ;;
